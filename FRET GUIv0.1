@@ -1,0 +1,33 @@
+###########################################################//#
+####
+#### FRETv0.1 GUI
+#### Author: Dan Stevens
+#### Date: Oct 6, 2017
+#### 
+############################################################
+
+
+## Define options for drop down menus
+methods = ['one','two','three']
+images = ['imageone', 'imagetwo', 'imagethree']
+
+## Define the window size and contents
+window = ZenWindow()
+window.Initialize('FRET Sensitized Emission Analysis',300,600,True,True)
+
+## select input images
+#window.AddTextBlock('Select image input for FRET Analysis','one','one')
+window.AddLabel('Donor Image','1','0')
+window.AddDropDown('DonorImage','',images,0,'1','1')
+window.AddLabel('Acceptor Image','2','0')
+window.AddDropDown('AcceptorImage','',images,0,'2','1')
+window.AddLabel('FRET Image','3','0')
+window.AddDropDown('FRETImage','',images,0,'3','1')
+
+## select FRET analysis method
+window.AddLabel('FRET Analysis Method','4','0')
+window.AddDropDown('FRETMethod','',methods,0,'4','1')
+
+## Assign selections to variables
+mainwindow = window.Show()
+DonorImageIndex = mainwindow.GetValue('DonorImage')
