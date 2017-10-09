@@ -1,0 +1,67 @@
+##################################################################################################################
+## Mask Generation for obtaining mean instensities of Background and Signal for FRET math to be done
+##
+## Author: Dan Stevens
+## Date: October 8, 2017
+## Zen Version: 2.3 SP1
+## Macro Version: 0.1
+##
+## Assumption is the following
+## ch1 = donor excite, donor emission
+## ch2 = acceptor excite, acceptor emission
+## ch3 = donor excite, acceptor emission
+##
+###################################################################################################################
+
+
+#temporary test block
+WorkingImage = Zen.Application.Documents.ActiveDocument
+
+#############
+# Function  Definition for Mask Generation of BG
+## INPUT    activeChannel
+## OUTPUT   activeMask
+#############
+def bgMaskFunction(activeChannel_MF):
+    segmentMask = Zen.Processing.Segmentation.ThresholdAutomatic(activeChannel_MF,ZenThresholdingMethod.ThreeSigmaThreshold,True,True,True,False)
+    erodeMask = Zen.Processing.Binary.UltimateErode(segmentMask, ZenStructureElement.Square, 5, False, False)
+    scrapMask = Zen.Processing.Binary.Scrap(erodeMask, 1000, 999999999, True,False)
+    activeMask_MF = scrapMask
+    return(activeMask_MF)
+
+#############
+## Function Definition for mean background determination
+## INPUT    activeChannel 
+##          activeMask
+## OUTPUT   meanBG
+#############
+def meanBGFunction(activeChannel_MVF, activeMask_MVF):
+    #initialize the analysis settings
+    ZIAS = ZenImageAnalysisSetting(ZenAnalysisSettingType.ExternalMask)
+    activeChannelName = activeChannel_MVF.Metadata.ChannelsDyeName
+    activeMaskName = activeMask_MVF.Metadata.ChannelsDyeName
+
+    #add measurement feature to the analysis routine
+    ZIAS.AddRegionClassPair('allClass',1,activeChannelName,2,activeMaskName)
+    ZIAS.GetRegionsClass('allClass').AddFeatureIntensity(ZenRegionsFeaturesIntensity.RegionsIntensityMean, activeChannelName)
+
+    ## Analyze the signal mean intensity, generate result table, copy value of result to meanBG variable
+    Zen.Analyzing.Analyze(activeChannel_MVF, activeMask_MVF, ZIAS)
+    results = Zen.Analyzing.CreateRegionsTable(activeChannel_MVF)
+    meanBG = float(results.GetValue(0,0))
+    return(meanBG)
+
+############
+## Primary loop - Extract channel, generates BG and Signal Mask, returns BG and Signal mean intensity, loops to next channel
+############
+
+for i in range(0,1):
+    channelNumber = 'C(' + str(i+1) + ')'
+    activeChannel = Zen.Processing.Utilities.CreateSubset(WorkingImage, channelNumber, False)
+    if i+1 == 1:
+        ##send activeChannel to bgMaskFunction(), returns mask
+        activeMask = bgMaskFunction(activeChannel)
+        #Zen.Application.Documents.Add(activeMask)
+        ##send activeChannel and bgMask to meanValFunction(), invert = true, returns meanValue for BG
+        donorMeanBG = meanBGFunction(activeChannel, activeMask)
+        
