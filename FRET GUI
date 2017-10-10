@@ -1,0 +1,115 @@
+###########################################################//#
+####
+#### FRETv0.1 GUI
+#### Author: Dan Stevens
+#### Date: Oct 6, 2017
+#### 
+############################################################
+
+#temporary test block
+Zen.Application.Documents.RemoveAll()
+image1 = Zen.Application.LoadImage("C:\\Users\\CADSTEV\\Desktop\\FRET Analysis OAD\\DonorOnly.czi", False)
+Zen.Application.Documents.Add(image1)
+image2 = Zen.Application.LoadImage("C:\\Users\\CADSTEV\\Desktop\\FRET Analysis OAD\\FRET_3ch.czi", False)
+Zen.Application.Documents.Add(image2)
+image3 = Zen.Application.LoadImage("C:\\Users\\CADSTEV\\Desktop\\FRET Analysis OAD\\AcceptorOnly.czi", False)
+Zen.Application.Documents.Add(image3)
+# *************** End of Code Block *****************
+
+
+
+## Define shortcuts
+
+zada = Zen.Application.Documents.ActiveDocument
+zad = Zen.Application.Documents
+
+##Check the number of open images, must be equal to 3 and each image must have 3 channels
+numImages = Zen.Application.Documents.Count
+
+if numImages != 3:
+    exitWindow = ZenWindow()
+    exitWindow.Initialize('',800,100,False,False)
+    exitWindow.AddLabel('FRET analysis requires three image files to be open in ZEN.  Currently there are ' + str(numImages) + ' images open in ZEN.','0','0')
+    exitNow = exitWindow.Show()
+    
+    raise SystemExit()
+
+## Define Methods options for drop down menus
+methodList = ['Fc (Youvan)','FRETN (Gordon)','N-FRET (Xia)']
+
+
+
+## Define image options for drop down menus
+imageName = []
+imageFile = []
+imageName.Add('------')
+imageFile.Add('------')
+
+for i in range (0,3):
+    currentImageName = Zen.Application.Documents.ActiveDocument.Name
+    currentImageFile = Zen.Application.Documents.ActiveDocument.FileName
+    imageName.Add(currentImageName)
+    imageFile.Add(currentImageFile)
+    Zen.Application.Documents.ActiveDocument.Save()
+    Zen.Application.Documents.ActiveDocument.Close()
+    ++i
+
+
+
+currentImage = Zen.Application.LoadImage(imageFile[3])
+Zen.Application.Documents.Add(currentImage)
+chCount1 = currentImage.Bounds.SizeC
+currentImage = Zen.Application.LoadImage(imageFile[2])
+Zen.Application.Documents.Add(currentImage)
+chCount2 = currentImage.Bounds.SizeC
+currentImage = Zen.Application.LoadImage(imageFile[1])
+Zen.Application.Documents.Add(currentImage)
+chCount3 = currentImage.Bounds.SizeC
+
+if chCount1 != 3 or chCount2 != 3 or chCount3 != 3:
+    exitWindow = ZenWindow()
+    exitWindow.Initialize('',800,100,True,False)
+    exitWindow.AddLabel('All Images must have 3 channels.')
+    exitWindow.AddLabel('Image 1 has' + str(chCount1) + ' channels')
+    exitWindow.AddLabel('Image 2 has' + str(chCount2) + ' channels')
+    exitWindow.AddLabel('Image 3 has' + str(chCount3) + ' channels')
+    exitNow = exitWindow.Show()
+    raise SystemExit()
+
+
+
+## Define the window size and contents
+window = ZenWindow()
+window.Initialize('FRET Sensitized Emission Analysis',400,600,True,True)
+
+## select input images
+#window.AddTextBlock('Select image input for FRET Analysis','one','one')
+window.AddLabel('Donor Image','1','0')
+window.AddDropDown('DonorImage','',imageName,0,'1','1')
+window.AddLabel('Acceptor Image','2','0')
+window.AddDropDown('AcceptorImage','',imageName,0,'2','1')
+window.AddLabel('FRET Image','3','0')
+window.AddDropDown('FRETImage','',imageName,0,'3','1')
+
+## select FRET analysis method
+window.AddLabel('FRET Analysis Method','4','0')
+window.AddDropDown('FRETMethod','',methodList,0,'4','1')
+
+## Assign selections to variables
+mainwindow = window.Show()
+DIndex = mainwindow.GetValue('DonorImage')
+AIndex = mainwindow.GetValue('AcceptorImage')
+FIndex = mainwindow.GetValue('FRETImage')
+
+## Exit with error if same image is used for two options
+
+if DIndex == FIndex or DIndex == AIndex or AIndex == FIndex:
+    exitWindow = ZenWindow()
+    exitWindow.Initialize('',800,100,True,False)
+    exitWindow.AddLabel('Donor, Acceptor and FRET image must be different')
+    exitNow = exitWindow.Show()
+    raise SystemExit()
+
+FRETdic = {}
+FRETdic = {'Donor': DIndex, 'Acceptor': AIndex, 'FRET': FIndex}
+
