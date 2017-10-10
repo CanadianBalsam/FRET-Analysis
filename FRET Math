@@ -1,0 +1,26 @@
+###########################################################//#
+##
+## Name:      FRET Math
+## Author:    Dan Stevens
+## Date:      Oct 6, 2017
+## 
+############################################################
+
+def bgCorrection(image1):           ## input is the original working image, FRET data for analysis
+
+
+def coeffAdjust(image1):            ## input is the background corrected working image
+
+
+def ratioCalculation(image1)        ## input is the coefficient adjusted FRET image
+
+
+
+## MAIN LOOP
+workingImage = Zen.Application.Documents.ActiveDocument
+bgCorrectedWorkingImage = bgCorrection(workingImage)
+coeffAdjustedFRETChannel = coeffAdjust(bgCorrectedWorkingImage)
+FRETRatioImage = ratioCalculation(coeffAdjustedFRETChannel)
+Zen.Application.Documents.Add(FRETRatioImage)
+
+FRETDataTable = dataTableFunction(workingImage, FRETRatioImage)
