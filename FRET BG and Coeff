@@ -1,117 +1,175 @@
+############################################################################################################################################################
+#temporary test block
+Zen.Application.Documents.RemoveAll(False)
+image1 = Zen.Application.LoadImage("C:\\Users\\CADSTEV\\Desktop\\FRET Analysis OAD\\Single Sphere Data Sets\\DonorControl.czi", False)
+Zen.Application.Documents.Add(image1)
+workingImage = Zen.Application.Documents.ActiveDocument
+debug = 'false'
 ##################################################################################################################
-## Mask Generation for obtaining mean instensities of Background and FRET correction coefficients for FRET math to be done
 ##
-## Author: Dan Stevens
-## Date: October 10, 2017
-## Zen Version: 2.3 SP1
+## Name:    FRET BG and CoEff
+## Author:  Dan Stevens
+## Date:    October 10, 2017
 ##
 ## Assumption is the following
 ## ch1 = donor excite, donor emission
 ## ch2 = acceptor excite, acceptor emission
 ## ch3 = donor excite, acceptor emission
 ##
+##  Logic progression
+##
+##  [input: Working Image]  =>  ROIValues(BGMaskfunction(), meanBGFunction()) => [output: ROIResults]
+##
+##  [input: Working Image, ROIResults]  =>  subBGValue()  => [output: subWorkingImage]
+##  
+##  [input: subWorkingImage]  => calcCoEff()  => [output: Correction Coefficients]
+##
 ###################################################################################################################
 
+
 #############
-# Function  Definition for Mask Generation of BG
-## INPUT    activeChannel
-## OUTPUT   activeMask
+# Function  Definition for Mask Generation of BG
+## INPUT    activeChannel
+## OUTPUT   activeMask
 #############
 def bgMaskFunction(activeChannel_MF):
-    segmentMask = Zen.Processing.Segmentation.ThresholdAutomatic(activeChannel_MF,ZenThresholdingMethod.ThreeSigmaThreshold,False,True,True,False)
-    erodeMask = Zen.Processing.Binary.UltimateErode(segmentMask, ZenStructureElement.Square, 8,False, False)
-    scrapMask = Zen.Processing.Binary.Scrap(erodeMask, 1000, 999999999, True,False)
-    activeMask_MF = segmentMask
-    #Zen.Application.Documents.Add(activeMask_MF)
-    return(activeMask_MF)
+    segmentMask = Zen.Processing.Segmentation.ThresholdAutomatic(activeChannel_MF,ZenThresholdingMethod.ThreeSigmaThreshold,False,True,True,False)
+    erodeMask = Zen.Processing.Binary.UltimateErode(segmentMask, ZenStructureElement.Square, 8,False, False)
+    scrapMask = Zen.Processing.Binary.Scrap(erodeMask, 1000, 999999999, True,False)
+    activeMask_MF = segmentMask
+    #Zen.Application.Documents.Add(activeMask_MF)
+    return(activeMask_MF)
 
 #############
 ## Function Definition for mean background determination
-## INPUT    activeChannel 
-##          activeMask
-## OUTPUT   meanBG
+## INPUT    activeChannel 
+##          activeMask
+## OUTPUT   meanBG
 #############
 def meanBGFunction(activeChannel_MVF, activeMask_MVF):
-    
-    #initialize the analysis settings
-    ZIAS = ZenImageAnalysisSetting(ZenAnalysisSettingType.ExternalMask)
-    activeChannelName = str(activeChannel_MVF.Metadata.GetChannelName(0))
-    activeMaskName = str(activeMask_MVF.Metadata.GetChannelName(0))
+    
+    #initialize the analysis settings
+    ZIAS = ZenImageAnalysisSetting(ZenAnalysisSettingType.ExternalMask)
+    activeChannelName = str(activeChannel_MVF.Metadata.GetChannelName(0))
+    activeMaskName = str(activeMask_MVF.Metadata.GetChannelName(0))
 
-    #add measurement feature to the analysis routine
-    ZIAS.AddRegionClassPair('allClass',1,activeMaskName,2,activeChannelName)
-    ZIAS.GetRegionsClass('allClass').AddFeatureIntensity(ZenRegionsFeaturesIntensity.RegionsIntensityMean, activeChannelName)
+    #add measurement feature to the analysis routine
+    ZIAS.AddRegionClassPair('allClass',1,activeMaskName,2,activeChannelName)
+    ZIAS.GetRegionsClass('allClass').AddFeatureIntensity(ZenRegionsFeaturesIntensity.RegionsIntensityMean, activeChannelName)
 
-    ## Analyze the signal mean intensity, generate result table, copy value of result to meanBG variable
-    Zen.Analyzing.Analyze(activeChannel_MVF, activeMask_MVF, ZIAS)
-    results = Zen.Analyzing.CreateRegionsTable(activeChannel_MVF)
-    meanBG = float(results.GetValue(0,0))
-    return(meanBG)
+    ## Analyze the signal mean intensity, generate result table, copy value of result to meanBG variable
+    Zen.Analyzing.Analyze(activeChannel_MVF, activeMask_MVF, ZIAS)
+    results = Zen.Analyzing.CreateRegionsTable(activeChannel_MVF)
+    meanBG = float(results.GetValue(0,0))
+    return(meanBG)
 
 ############
-## Primary loop - Extract channel, generates BG and Signal Mask, returns BG and Signal mean intensity, loops to next channel
+## roiValues - Creates the background mask, and determines the mean intensity for the background, returns three bg values, one for each channels
 ############
 def roiValues(workingImage):
-    for i in range(0,3):
-        channelNumber = 'C(' + str(i+1) + ')'
-        activeChannel = Zen.Processing.Utilities.CreateSubset(workingImage, channelNumber, False)
-        if i+1 == 1:
-            activeMask = bgMaskFunction(activeChannel)                              #sends activeChannel to create background mask
-            donorMeanBG = meanBGFunction(activeChannel, activeMask)                 #uses background mask on active channel to return background mean value
-        if i+1 == 2:
-            activeMask = bgMaskFunction(activeChannel)
-            acceptorMeanBG = meanBGFunction(activeChannel, activeMask)
-        if i+1 == 3:
-            activeMask = bgMaskFunction(activeChannel)
-            FRETMeanBG = meanBGFunction(activeChannel, activeMask)
-    return(donorMeanBG, acceptorMeanBG, FRETMeanBG)
+    for i in range(0,3):
+        channelNumber = 'C(' + str(i+1) + ')'
+        activeChannel = Zen.Processing.Utilities.CreateSubset(workingImage, channelNumber, False)
+        if i+1 == 1:
+            activeMask = bgMaskFunction(activeChannel)                              #sends activeChannel to create background mask
+            donorMeanBG = meanBGFunction(activeChannel, activeMask)                 #uses background mask on active channel to return background mean value
+        if i+1 == 2:
+            activeMask = bgMaskFunction(activeChannel)
+            acceptorMeanBG = meanBGFunction(activeChannel, activeMask)
+        if i+1 == 3:
+            activeMask = bgMaskFunction(activeChannel)
+            FRETMeanBG = meanBGFunction(activeChannel, activeMask)
+    return(donorMeanBG, acceptorMeanBG, FRETMeanBG)
 
 ##########
 ## Define subBGValue function - subtracts the background specific to each channel in a 3 channel image, returns an image with background values subtracted
 ##########
 def subBGValue(workingImage_f, roiResults_f):
-    for i in range(0,3):
-        channelNumber = 'C(' + str(i+1) + ')'
-        activeChannel = Zen.Processing.Utilities.CreateSubset(workingImage_f, channelNumber, False)
-        if i+1 == 1:
-            Ch1sub = Zen.Processing.Arithmetics.AddConstant(activeChannel, float(-roiResults[i]), False)
-        if i+1 == 2:
-            Ch2sub = Zen.Processing.Arithmetics.AddConstant(activeChannel, float(-roiResults[i]), False)
-        if i+1 == 3:
-            Ch3sub = Zen.Processing.Arithmetics.AddConstant(activeChannel, float(-roiResults[i]), False)
-    Ch12 = Zen.Processing.Utilities.AddChannels(Ch1sub, Ch2sub)
-    subWorkingImage_f = Zen.Processing.Utilities.AddChannels(Ch12, Ch3sub)
-    return(subWorkingImage_f)
+    for i in range(0,3):
+        channelNumber = 'C(' + str(i+1) + ')'
+        activeChannel = Zen.Processing.Utilities.CreateSubset(workingImage_f, channelNumber, False)
+        if i+1 == 1:
+            Ch1sub = Zen.Processing.Arithmetics.AddConstant(activeChannel, float(-roiResults[i]), False)
+        if i+1 == 2:
+            Ch2sub = Zen.Processing.Arithmetics.AddConstant(activeChannel, float(-roiResults[i]), False)
+        if i+1 == 3:
+            Ch3sub = Zen.Processing.Arithmetics.AddConstant(activeChannel, float(-roiResults[i]), False)
+    Ch1and2 = Zen.Processing.Utilities.AddChannels(Ch1sub, Ch2sub)
+    subWorkingImage_f = Zen.Processing.Utilities.AddChannels(Ch1and2, Ch3sub)
+    return(subWorkingImage_f)
 
 def calcCoeff(subWorkingImage_f):
-    Ch1_f = Zen.Processing.Utilities.CreateSubset(subWorkingImage_f, 'C(1)', False)
-    Ch2_f = Zen.Processing.Utilities.CreateSubset(subWorkingImage_f, 'C(2)', False)
-    Ch3_f = Zen.Processing.Utilities.CreateSubset(subWorkingImage_f, 'C(3)', False)
-    ratioMask_f = Zen.Processing.Segmentation.ThresholdAutomatic(Ch1_f, ZenThresholdingMethod.ThreeSigmaThreshold,False,False,True,False)
-    ratioImage_f = Zen.Processing.Arithmetics.Division(Ch3_f, Ch1_f, 1000,False,False)
-    
-    ZIAS = ZenImageAnalysisSetting(ZenAnalysisSettingType.ExternalMask)
-    activeChannelName = str(ratioImage_f.Metadata.GetChannelName(0))
-    activeMaskName = str(ratioMask_f.Metadata.GetChannelName(0))
-
-    #add measurement feature to the analysis routine
-    ZIAS.AddRegionClassPair('allClass',1,activeMaskName,2,activeChannelName)
-    ZIAS.GetRegionsClass('allClass').AddFeatureIntensity(ZenRegionsFeaturesIntensity.RegionsIntensityMean, activeChannelName)
-
-    ## Analyze the signal mean intensity, generate result table, copy value of result to meanBG variable
-    Zen.Analyzing.Analyze(ratioImage_f, ratioMask_f, ZIAS)
-    results = Zen.Analyzing.CreateRegionsTable(ratioImage_f)
-    meanRatio = float(results.GetValue(0,0)/1000)               ## division by 1000 corrects for the scale factor in the ratio image.  During ratio, values below 0 are scored 0
-    return(meanRatio)
-
-
-#temporary test block
-workingImage = Zen.Application.Documents.ActiveDocument
+    Ch1_f = Zen.Processing.Utilities.CreateSubset(subWorkingImage_f, 'C(1)', False)
+    Ch2_f = Zen.Processing.Utilities.CreateSubset(subWorkingImage_f, 'C(2)', False)
+    Ch3_f = Zen.Processing.Utilities.CreateSubset(subWorkingImage_f, 'C(3)', False)
+    
+    if debug == 'true':
+        Zen.Application.Documents.Add(Ch1_f)
+        Zen.Application.Documents.ActiveDocument.Name = 'Ch1_f'
+        Zen.Application.Documents.Add(Ch2_f)
+        Zen.Application.Documents.ActiveDocument.Name = 'Ch2_f'
+        Zen.Application.Documents.Add(Ch3_f)
+        Zen.Application.Documents.ActiveDocument.Name = 'Ch3_f'
+        
+    for i in range (0,2):
+        if i == 0:
+            activeChannel = Ch1_f
+        if i == 1:
+            activeChannel = Ch2_f
+            
+        ##donor ratio
+        ratioMask_f = Zen.Processing.Segmentation.ThresholdAutomatic(activeChannel, ZenThresholdingMethod.ThreeSigmaThreshold,False,False,True,False)
+        ratioImage_f = Zen.Processing.Arithmetics.Division(Ch3_f, activeChannel, 1000,False,False)          ## includes a scale factor of 1000x in order to avoid rounding of the ratio values
+        
+        if debug == 'true':
+            Zen.Application.Documents.Add(ratioMask_f)
+            Zen.Application.Documents.ActiveDocument.Name = 'ratioMask'
+            Zen.Application.Documents.Add(ratioImage_f)
+            Zen.Application.Documents.ActiveDocument.Name = 'ratioImage'
+        
+        ZIAS = ZenImageAnalysisSetting(ZenAnalysisSettingType.ExternalMask)
+        activeChannelName = str(ratioImage_f.Metadata.GetChannelName(0))
+        activeMaskName = str(ratioMask_f.Metadata.GetChannelName(0))
+    
+        #add measurement feature to the analysis routine
+        ZIAS.AddRegionClassPair('allClass',1,activeMaskName,2,activeChannelName)
+        ZIAS.GetRegionsClass('allClass').AddFeatureIntensity(ZenRegionsFeaturesIntensity.RegionsIntensityMean, activeChannelName)
+    
+        ## Analyze the signal mean intensity, generate result table, copy value of result to meanBG variable
+        Zen.Analyzing.Analyze(ratioImage_f, ratioMask_f, ZIAS)
+        results = Zen.Analyzing.CreateRegionsTable(ratioImage_f)
+        meanRatio = float(results.GetValue(0,0)/1000)               ## division by 1000 corrects for the scale factor in the ratio image.  During ratio, values below 0 are scored 0
+        
+        if i == 0:
+            donorRatio = meanRatio
+        if i == 1:
+            acceptorRatio = meanRatio
+    
+    return(donorRatio, acceptorRatio)
 
 #############################################################################################################################################################
 ##Beginning of main loop
-roiResults = []                                                                     #returns the background values of a 3ch image as an array
-roiResults = roiValues(workingImage)
-subWorkingImage = subBGValue(workingImage, roiResults)                  
-Zen.Application.Documents.Add(subWorkingImage)
-donorCoeff = calcCoeff(subWorkingImage)
+roiResults = []                                                                     #returns the background values of a 3ch image as an array
+corrCoeff = []                                                                      #returns the final correction coefficients from a single image [0]=donor [1]=acceptor
+
+if Zen.Application.Documents.ActiveDocument.Name == 'DonorControl.czi':
+    roiResults = roiValues(workingImage)
+    subWorkingImage = subBGValue(workingImage, roiResults)                  
+    #Zen.Application.Documents.Add(subWorkingImage)
+    corrCoeff = calcCoeff(subWorkingImage)
+    donorCorrCoeff = corrCoeff[0]
+if Zen.Application.Documents.ActiveDocument.Name == 'AcceptorControl.czi':
+    roiResults = roiValues(workingImage)
+    subWorkingImage = subBGValue(workingImage, roiResults)                  
+    #Zen.Application.Documents.Add(subWorkingImage)
+    corrCoeff = calcCoeff(subWorkingImage)
+    acceptorCorrCoeff = corrCoeff[1]
+if Zen.Application.Documents.ActiveDocument.Name == 'FRETImage.czi':
+    roiResults = roiValues(workingImage)
+    subFRETImage = subBGValue(workingImage, roiResults)                  ##note: the background corrrected FRET image is a different variable name, to pass along
+    Zen.Application.Documents.Add(subWorkingImage)
+    #FRETresults = FRETMath(subFRETImage, donorCorrCoeff, acceptorCorrCoeff)
+
+#############################################################################################################################################################
+
+
