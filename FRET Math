@@ -1,26 +1,90 @@
-###########################################################//#
+
+
+### Temporary test block
+Zen.Application.Documents.RemoveAll(False)
+subFRETImage = Zen.Application.LoadImage("C:\\Users\\CADSTEV\\Desktop\\FRET Analysis OAD\\RI data set\\subFRETImage.czi", False)
+Zen.Application.Documents.Add(subFRETImage )
+corrCoeff = [.112,.191]   ##provides correction coefficients for math
+
+debug = 'false'
+###########################################################
 ##
-## Name:      FRET Math
-## Author:    Dan Stevens
-## Date:      Oct 6, 2017
-## 
+## Name:      FRET Math
+## Author:    Dan Stevens
+## Date:      Oct 13, 2017
+## 
 ############################################################
 
-def bgCorrection(image1):           ## input is the original working image, FRET data for analysis
+def coeffAdjust(subFretImage_f, corrCoeff_f):           ## input is the original working image, FRET data for analysis
+    Ch1_f = Zen.Processing.Utilities.CreateSubset(subFretImage_f, 'C(1)', False)
+    Ch2_f = Zen.Processing.Utilities.CreateSubset(subFretImage_f, 'C(2)', False)
+    Ch3_f = Zen.Processing.Utilities.CreateSubset(subFretImage_f, 'C(3)', False)
+    
+    donorBleedImage = Zen.Processing.Arithmetics.MultiplyConstant(Ch1_f, corrCoeff[0], False)
+    acceptorBleedImage = Zen.Processing.Arithmetics.MultiplyConstant(Ch2_f, corrCoeff[0], False)
+    donorCorrFRET = Zen.Processing.Arithmetics.Subtraction(Ch3_f, donorBleedImage,ZenNormalizeMode.Absolute,False)
+    youvanImage = Zen.Processing.Arithmetics.Subtraction(donorCorrFRET, acceptorBleedImage, ZenNormalizeMode.Absolute, False)
+    
+    gordonDenominator = Zen.Processing.Arithmetics.Multiplication(Ch1_f, Ch2_f, 1,False,False)
+    xiaDenominator = Zen.Processing.Arithmetics.SquareRoot(gordonDenominator)
+    
+    if debug == 'true':
+        Zen.Application.Documents.Add(donorBleedImage)
+        Zen.Application.Documents.ActiveDocument.Name = 'donorBleedImage'
+        Zen.Application.Documents.Add(acceptorBleedImage)
+        Zen.Application.Documents.ActiveDocument.Name = 'acceptorBleedImage'
+        Zen.Application.Documents.Add(donorCorrFRET)
+        Zen.Application.Documents.ActiveDocument.Name = 'donorCorrFRET'
+        Zen.Application.Documents.Add(youvanImage)
+        Zen.Application.Documents.ActiveDocument.Name = 'youvanImage'
+        Zen.Application.Documents.Add(gordonDenominator)
+        Zen.Application.Documents.ActiveDocument.Name = 'gordonDenominator'
+        Zen.Application.Documents.Add(xiaDenominator)
+        Zen.Application.Documents.ActiveDocument.Name = 'xiaDenominator'
+        
+    return (youvanImage, gordonDenominator, xiaDenominator)
 
 
-def coeffAdjust(image1):            ## input is the background corrected working image
+def ratioCalculation(FRETMathImages):                   ## input is the coefficient adjusted FRET image
 
+    ## Youvan et al., Biotechnology et alia 3, 1 (1997)
+    ## Fc = Ff-Df(Fd/Dd)-Af(Fa/Aa)
+    youvanImage = FRETMathImages[0]
 
-def ratioCalculation(image1)        ## input is the coefficient adjusted FRET image
-
+    ## FRETN or Gordon method:
+    ## Gordon et al., Biophys J 74, 2702 (1998)
+    ## FRETN = FRET1/ Dfd * Afa
+    gordonImage = Zen.Processing.Arithmetics.Division(FRETMathImages[0], FRETMathImages[1])
+    
+    ## N-FRET or Xia method:
+    ## Xia and Liu, Biophys J 81, 2395 (2001)
+    ## NFRET = FRET 1/ √(Dfd*Afa)
+    xiaImage = Zen.Processing.Arithmetics.SquareRoot(gordonImage)
+    
+    if debug == 'true':
+        Zen.Application.Documents.Add(youvanImage)
+        Zen.Application.Documents.ActiveDocument.Name = 'youvanImage'
+        Zen.Application.Documents.Add(gordonImage)
+        Zen.Application.Documents.ActiveDocument.Name = 'gordonImage'
+        Zen.Application.Documents.Add(xiaImage)
+        Zen.Application.Documents.ActiveDocument.Name = 'xiaImage'    
+    
+    temp1 = Zen.Processing.Utilities.AddChannels(youvanImage,gordonImage)
+    ratioImage = Zen.Processing.Utilities.AddChannels(temp1, xiaImage)
+    ratioImage.SetChannelName(0,'Youvan')
+    ratioImage.SetChannelName(1,'Gordon')
+    ratioImage.SetChannelName(2,'Xia')
+    
+    return(ratioImage)  ## return of ratioCalculation()
 
 
 ## MAIN LOOP
-workingImage = Zen.Application.Documents.ActiveDocument
-bgCorrectedWorkingImage = bgCorrection(workingImage)
-coeffAdjustedFRETChannel = coeffAdjust(bgCorrectedWorkingImage)
-FRETRatioImage = ratioCalculation(coeffAdjustedFRETChannel)
-Zen.Application.Documents.Add(FRETRatioImage)
+FRETMathImages = []
+FRETMathImages = coeffAdjust(subFRETImage, corrCoeff)
+ratioImage = ratioCalculation(FRETMathImages)
+Zen.Application.Documents.Add(ratioImage)
+Zen.Application.Documents.ActiveDocument.Name = 'ratioImage' 
+#FRETDataTable = dataTableFunction(workingImage, FRETRatioImage)
 
-FRETDataTable = dataTableFunction(workingImage, FRETRatioImage)
+# *************** Recorded Code Block ***************
+# *************** End of Code Block *****************
