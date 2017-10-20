@@ -1,13 +1,13 @@
 ############################################################################################################################################################
 #temporary test block
-Zen.Application.Documents.RemoveAll(False)
+#Zen.Application.Documents.RemoveAll(False)
 
-image1 = Zen.Application.LoadImage("C:\\Users\\CADSTEV\\Desktop\\FRET Analysis OAD\\RI data set\\AcceptorControl.czi", False)
-Zen.Application.Documents.Add(image1)
-image2 = Zen.Application.LoadImage("C:\\Users\\CADSTEV\\Desktop\\FRET Analysis OAD\\RI data set\\DonorControl.czi", False)
-Zen.Application.Documents.Add(image2)
-image3 = Zen.Application.LoadImage("C:\\Users\\CADSTEV\\Desktop\\FRET Analysis OAD\\RI data set\\FRETImage.czi", False)
-Zen.Application.Documents.Add(image3)
+#image1 = Zen.Application.LoadImage("C:\\Users\\CADSTEV\\Desktop\\FRET Analysis OAD\\RI data set\\AcceptorControl.czi", False)
+#Zen.Application.Documents.Add(image1)
+#image2 = Zen.Application.LoadImage("C:\\Users\\CADSTEV\\Desktop\\FRET Analysis OAD\\RI data set\\DonorControl.czi", False)
+#Zen.Application.Documents.Add(image2)
+#image3 = Zen.Application.LoadImage("C:\\Users\\CADSTEV\\Desktop\\FRET Analysis OAD\\RI data set\\FRETImage.czi", False)
+#Zen.Application.Documents.Add(image3)
 
 debug = 'false'
 
@@ -39,22 +39,17 @@ debug = 'false'
 ## OUTPUT   activeMask
 #############
 def bgMaskFunction(activeChannel_MF):
-    segmentMask = Zen.Processing.Segmentation.ThresholdAutomatic(activeChannel_MF,ZenThresholdingMethod.ThreeSigmaThreshold,False,True,True,False)
+    segmentMask = Zen.Processing.Segmentation.ThresholdAutomatic(activeChannel_MF,ZenThresholdingMethod.TriangleThreshold,True,True,True,False)
     if debug == 'true':
         Zen.Application.Documents.Add(segmentMask)
-        Zen.Application.Documents.ActiveDocument.Name = 'segmentMask'
+        Zen.Application.Documents.ActiveDocument.Name = 'segmentMask_' + activeChannel_MF.Name
     
     scrapMask = Zen.Processing.Binary.Scrap(segmentMask, 1000, 999999999, True,False)
     if debug == 'true':
         Zen.Application.Documents.Add(scrapMask)
-        Zen.Application.Documents.ActiveDocument.Name = 'scrapMask'
+        Zen.Application.Documents.ActiveDocument.Name = 'scrapMask_' + activeChannel_MF.Name
     
-    activeMask_MF = scrapMask
-    if debug == 'true':
-        Zen.Application.Documents.Add(activeMask_MF)
-        Zen.Application.Documents.ActiveDocument.Name = 'activeMask_MF'
-    
-    return(activeMask_MF)
+    return(scrapMask)
 
 #############
 ## Function Definition for mean background determination
@@ -88,8 +83,9 @@ def roiValues(workingImage):
         activeChannel = Zen.Processing.Utilities.CreateSubset(workingImage, channelNumber, False)
         
         if debug == 'true':
+            name = workingImage.Name + '_' + channelNumber
             Zen.Application.Documents.Add(activeChannel)
-            Zen.Application.Documents.ActiveDocument.Name = 'activeChannel'
+            Zen.Application.Documents.ActiveDocument.Name = name
         
         if i+1 == 1:
             activeMask = bgMaskFunction(activeChannel)                              #sends activeChannel to create background mask
@@ -139,7 +135,7 @@ def calcCoeff(subWorkingImage_f):
             activeChannel = Ch2_f
             
         ##donor ratio
-        ratioMask_f = Zen.Processing.Segmentation.ThresholdAutomatic(activeChannel, ZenThresholdingMethod.ThreeSigmaThreshold,False,False,True,False)
+        ratioMask_f = Zen.Processing.Segmentation.ThresholdAutomatic(activeChannel, ZenThresholdingMethod.TriangleThreshold,True,False,True,False)
         ratioImage_f = Zen.Processing.Arithmetics.Division(Ch3_f, activeChannel, 1000,False,False)          ## includes a scale factor of 1000x in order to avoid rounding of the ratio values
         
         if debug == 'true':
@@ -168,20 +164,24 @@ def calcCoeff(subWorkingImage_f):
     
     return(donorRatio, acceptorRatio)
     
-def coeffAdjust(subFretImage_f, corrCoeff_f):           ## input is the original working image, FRET data for analysis
-    Ch1_f = Zen.Processing.Utilities.CreateSubset(subFretImage_f, 'C(1)', False)
-    Ch2_f = Zen.Processing.Utilities.CreateSubset(subFretImage_f, 'C(2)', False)
-    Ch3_f = Zen.Processing.Utilities.CreateSubset(subFretImage_f, 'C(3)', False)
+def coeffAdjust(subFRETImage_f, donorCorrCoeff_f, acceptorCorrCoeff_f):           ## input is the original working image, FRET data for analysis
+    Ch1_f = Zen.Processing.Utilities.CreateSubset(subFRETImage_f, 'C(1)', False)
+    Ch2_f = Zen.Processing.Utilities.CreateSubset(subFRETImage_f, 'C(2)', False)
+    Ch3_f = Zen.Processing.Utilities.CreateSubset(subFRETImage_f, 'C(3)', False)
     
-    donorBleedImage = Zen.Processing.Arithmetics.MultiplyConstant(Ch1_f, corrCoeff[0], False)
-    acceptorBleedImage = Zen.Processing.Arithmetics.MultiplyConstant(Ch2_f, corrCoeff[0], False)
+    donorBleedImage = Zen.Processing.Arithmetics.MultiplyConstant(Ch1_f, donorCorrCoeff_f, False)
+    acceptorBleedImage = Zen.Processing.Arithmetics.MultiplyConstant(Ch2_f, acceptorCorrCoeff_f, False)
+    
     donorCorrFRET = Zen.Processing.Arithmetics.Subtraction(Ch3_f, donorBleedImage,ZenNormalizeMode.Absolute,False)
     youvanImage = Zen.Processing.Arithmetics.Subtraction(donorCorrFRET, acceptorBleedImage, ZenNormalizeMode.Absolute, False)
     
     gordonDenominator = Zen.Processing.Arithmetics.Multiplication(Ch1_f, Ch2_f, 1,False,False)
     xiaDenominator = Zen.Processing.Arithmetics.SquareRoot(gordonDenominator)
     
+    #debug = 'true'
     if debug == 'true':
+        Zen.Application.Documents.Add(subFRETImage_f)
+        Zen.Application.Documents.ActiveDocument.Name = 'subFRETImage_f'
         Zen.Application.Documents.Add(donorBleedImage)
         Zen.Application.Documents.ActiveDocument.Name = 'donorBleedImage'
         Zen.Application.Documents.Add(acceptorBleedImage)
@@ -207,13 +207,16 @@ def ratioCalculation(FRETMathImages):                   ## input is the coeffici
     ## FRETN or Gordon method:
     ## Gordon et al., Biophys J 74, 2702 (1998)
     ## FRETN = FRET1/ Dfd * Afa
-    gordonImage = Zen.Processing.Arithmetics.Division(FRETMathImages[0], FRETMathImages[1])
+    tempgordonImage = Zen.Processing.Arithmetics.Division(FRETMathImages[0], FRETMathImages[1],1000,False,False)
+    gordonImage = Zen.Processing.Arithmetics.MultiplyConstant(tempgordonImage,1,False)
     
     ## N-FRET or Xia method:
     ## Xia and Liu, Biophys J 81, 2395 (2001)
     ## NFRET = FRET 1/ √(Dfd*Afa)
-    xiaImage = Zen.Processing.Arithmetics.SquareRoot(gordonImage)
+    tempxiaImage = Zen.Processing.Arithmetics.Division(FRETMathImages[0], FRETMathImages[2],1000,False,False)    
+    xiaImage = Zen.Processing.Arithmetics.MultiplyConstant(tempxiaImage,1,False)
     
+    debug = 'true'
     if debug == 'true':
         Zen.Application.Documents.Add(youvanImage)
         Zen.Application.Documents.ActiveDocument.Name = 'youvanImage'
@@ -230,6 +233,28 @@ def ratioCalculation(FRETMathImages):                   ## input is the coeffici
     
     return(ratioImage)  ## return of ratioCalculation()
 
+def errorWindow(errorType, errorVariable):
+    exitWindow = ZenWindow()
+    exitWindow.Initialize('',800,100,True,False)
+    if errorType == 'NumberOfImagesNotEqualTo3':
+        exitWindow.AddLabel('Data set must consist of seperate three image files')
+        exitWindow.AddLabel('Open data set consists of ' + str(errorVariable) + ' images')
+        exitNow = exitWindow.Show()
+        raise SystemExit()
+    if errorType == 'ChannelsNotEqualTo3':
+        exitWindow.AddLabel('All Images must have 3 channels.')
+        exitWindow.AddLabel(str(errorVariable.Name) + ' has ' + str(errorVariable.Bounds.SizeC) + ' channels')
+        exitNow = exitWindow.Show()
+        raise SystemExit()
+    if errorType == 'SameImageSelectedTwice':
+        exitWindow.AddLabel('A different image must be selected for each input option.')
+        exitNow = exitWindow.Show()
+        raise SystemExit()
+    if errorType == 'RGBimage':
+        exitWindow.AddLabel('RGB images can not be analyzed')
+        exitNow = exitWindow.Show()
+        raise SystemExit()
+
     
 ###########################################################//#
 ##
@@ -239,25 +264,11 @@ def ratioCalculation(FRETMathImages):                   ## input is the coeffici
 ## 
 ############################################################
 
-## Define shortcuts
-
-#zada = Zen.Application.Documents.ActiveDocument
-#zad = Zen.Application.Documents
-
 ##Check the number of open images, must be equal to 3 and each image must have 3 channels
 numImages = Zen.Application.Documents.Count
-
 if numImages != 3:
-    exitWindow = ZenWindow()
-    exitWindow.Initialize('',800,100,False,False)
-    exitWindow.AddLabel('FRET analysis requires three image files to be open in ZEN.  Currently there are ' + str(numImages) + ' images open in ZEN.','0','0')
-    exitNow = exitWindow.Show()
-    
-    raise SystemExit()
-
-## Define Methods options for drop down menus
-#methodList = ['Fc (Youvan)','FRETN (Gordon)','N-FRET (Xia)']
-
+    errorType = 'NumberOfImagesNotEqualTo3'
+    errorWindow(errorType, numImages)
 
 
 ## Define image options for drop down menus
@@ -267,36 +278,19 @@ imageName.Add('------')
 imageFile.Add('------')
 
 for i in range (0,3):
-    currentImageName = Zen.Application.Documents.ActiveDocument.Name
-    currentImageFile = Zen.Application.Documents.ActiveDocument.FileName
-    imageName.Add(currentImageName)
-    imageFile.Add(currentImageFile)
-    Zen.Application.Documents.ActiveDocument.Save()
-    Zen.Application.Documents.ActiveDocument.Close()
-    ++i
+    currentImage = Zen.Application.Documents[i]
+    ## Check that each image has 3 channels
+    chCheck = currentImage.Bounds.SizeC
+    if chCheck != 3:
+        errorType = 'ChannelsNotEqualTo3'
+        errorWindow(errorType, currentImage)
+    pixelCheck = str(currentImage.Metadata.PixelType)
+    if 'Bgr' in pixelCheck:
+        errorType = 'RGBimage'
+        errorWindow(errorType, currentImage)
+    imageName.Add(currentImage.Name)
+    #imageFile.Add(currentImageFile)
 
-currentImage = Zen.Application.LoadImage(imageFile[3])
-Zen.Application.Documents.Add(currentImage)
-chCount1 = currentImage.Bounds.SizeC
-#check that this is a grayscale image
-
-currentImage = Zen.Application.LoadImage(imageFile[2])
-Zen.Application.Documents.Add(currentImage)
-chCount2 = currentImage.Bounds.SizeC
-
-currentImage = Zen.Application.LoadImage(imageFile[1])
-Zen.Application.Documents.Add(currentImage)
-chCount3 = currentImage.Bounds.SizeC
-
-if chCount1 != 3 or chCount2 != 3 or chCount3 != 3:
-    exitWindow = ZenWindow()
-    exitWindow.Initialize('',800,100,True,False)
-    exitWindow.AddLabel('All Images must have 3 channels.')
-    exitWindow.AddLabel('Image 1 has' + str(chCount1) + ' channels')
-    exitWindow.AddLabel('Image 2 has' + str(chCount2) + ' channels')
-    exitWindow.AddLabel('Image 3 has' + str(chCount3) + ' channels')
-    exitNow = exitWindow.Show()
-    raise SystemExit()
 
 ## Define the window size and contents
 window = ZenWindow()
@@ -310,10 +304,6 @@ window.AddDropDown('AcceptorImage','',imageName,0,'2','1')
 window.AddLabel('FRET Image','3','0')
 window.AddDropDown('FRETImage','',imageName,0,'3','1')
 
-## select FRET analysis method
-#window.AddLabel('FRET Analysis Method','4','0')
-#window.AddDropDown('FRETMethod','',methodList,0,'4','1')
-
 ## Assign selections to variables
 mainwindow = window.Show()
 DIndex = mainwindow.GetValue('DonorImage')
@@ -321,48 +311,89 @@ AIndex = mainwindow.GetValue('AcceptorImage')
 FIndex = mainwindow.GetValue('FRETImage')
 
 ## Exit with error if same image is used for two options
-
 if DIndex == FIndex or DIndex == AIndex or AIndex == FIndex:
-    exitWindow = ZenWindow()
-    exitWindow.Initialize('',800,100,True,False)
-    exitWindow.AddLabel('Donor, Acceptor and FRET image must be different')
-    exitNow = exitWindow.Show()
-    raise SystemExit()
+    errorType = 'SameImageSelectedTwice'
+    errorWindow(errorType, 0)
+
 
 #############################################################################################################################################################
 ##Beginning of main loop
 roiResults = []                                                                     #returns the background values of a 3ch image as an array
 corrCoeff = []                                                                      #returns the final correction coefficients from a single image [0]=donor [1]=acceptor
 
-
-workingImage = Zen.Application.Documents.GetByName(DIndex)
+##############################
+##DONOR CORRECTION COEFFICIENT
+##############################
+originalImage = Zen.Application.Documents.GetByName(DIndex)
+floatImage = Zen.Processing.Utilities.ChangePixelType(originalImage, ZenPixelType.Gray32Float, False)
+workingImage = floatImage
 roiResults = roiValues(workingImage)
-subWorkingImage = subBGValue(workingImage, roiResults)                  
+subWorkingImage = subBGValue(workingImage, roiResults)
 #Zen.Application.Documents.Add(subWorkingImage)
 corrCoeff = calcCoeff(subWorkingImage)
 donorCorrCoeff = corrCoeff[0]
 
-workingImage = Zen.Application.Documents.GetByName(AIndex)
+#################################
+##ACCEPTOR CORRECTION COEFFICIENT
+#################################
+originalImage = Zen.Application.Documents.GetByName(AIndex)
+floatImage = Zen.Processing.Utilities.ChangePixelType(originalImage, ZenPixelType.Gray32Float, False)
+workingImage = floatImage
 roiResults = roiValues(workingImage)
 subWorkingImage = subBGValue(workingImage, roiResults)                  
 #Zen.Application.Documents.Add(subWorkingImage)
 corrCoeff = calcCoeff(subWorkingImage)
 acceptorCorrCoeff = corrCoeff[1]
 
-workingImage = Zen.Application.Documents.GetByName(FIndex)
+################################
+## FRET Image Math
+################################
+originalImage = Zen.Application.Documents.GetByName(FIndex)
+floatImage = Zen.Processing.Utilities.ChangePixelType(originalImage, ZenPixelType.Gray32Float, False)
+workingImage = floatImage
 roiResults = roiValues(workingImage)
 subFRETImage = subBGValue(workingImage, roiResults)                  ##note: the background corrrected FRET image is a different variable name, to pass along
 
-if debug == 'true':
-    Zen.Application.Documents.Add(subFRETImage)
-    Zen.Application.Documents.ActiveDocument.Name = 'subFRETImage'
-    
 ## MAIN LOOP FRET MATH
 FRETMathImages = []
-FRETMathImages = coeffAdjust(subFRETImage, corrCoeff)
-ratioImage = ratioCalculation(FRETMathImages)
-ratioImage.Name = 'ratioImage' 
-Zen.Application.Documents.Add(ratioImage)
 
-#FRETDataTable = dataTableFunction(workingImage, FRETRatioImage)
+FRETMathImages = coeffAdjust(subFRETImage, donorCorrCoeff, acceptorCorrCoeff)
+FRETHeatMap = ratioCalculation(FRETMathImages)
+FRETHeatMap.Name = 'FRETHeatMap' 
+Zen.Application.Documents.Add(FRETHeatMap)
+Zen.Application.DocumentViews.Find(FRETHeatMap).ActiveViewType = ZenDocumentView.ImageSplit
+
+frequentannotations1 = FRETHeatMap.Graphics.Add(ZenGraphicCategory.FrequentAnnotations)
+frequentannotations1.SetDataSource(FrequentAnnotationDataSource.MultiChannelName)
+frequentannotations1.Thickness = 1
+frequentannotations1.StrokeColor = ZenColors.Yellow
+frequentannotations1.TextColor = ZenColors.Yellow
+frequentannotations1.IsMeasurementVisible = False
+
+
+
+
+## Output results table
+table = ZenTable()
+table.Name = 'FRET Calculation Parameters'
+table.Columns.Add('Variable')
+table.Columns.Add('Value')
+
+table.SetValue(0,0,'Donor Background')
+table.SetValue(0,1,roiResults[0])
+
+table.SetValue(1,0,'Acceptor Background')
+table.SetValue(1,1,roiResults[1])
+
+table.SetValue(2,0,'FRET Background')
+table.SetValue(2,1,roiResults[2])
+
+table.SetValue(3,0,'Donor Correction Coefficient')
+table.SetValue(3,1,donorCorrCoeff)
+
+table.SetValue(4,0,'Acceptor Correction Coefficient')
+table.SetValue(4,1,acceptorCorrCoeff)
+
+Zen.Application.Documents.Add(table)
+
 
